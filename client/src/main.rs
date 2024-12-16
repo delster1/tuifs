@@ -6,22 +6,47 @@ use ratatui::{
     style::Stylize,
     symbols::border,
     text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Block, Paragraph, Widget, ListState},
     DefaultTerminal, Frame,
 };
 use color_eyre::{
     eyre::{bail, WrapErr},
     Result,
 };
-use std::io;
+use std::{io, net::IpAddr};
 // we use a struct to store the state of our application and stuff
 #[derive(Debug, Default)]
-pub struct App {
-    counter: u8,
+pub struct App<'a> {
+    pub title : &'a str,
+    pub server_files : StatefulList<&'a str>, 
+    server_location : IpAndPort,
+    counter: u32,
     exit: bool,
 }
+#[derive(Debug)]
+pub struct IpAndPort {
+    ip: IpAddr,
+    port: u16,
+}
 
-impl App {
+impl Default for IpAndPort {
+    fn default() -> Self {
+        Self {
+            ip: "127.0.0.1".parse().unwrap(),
+            port: 3333
+        }
+    }
+}
+
+
+
+#[derive(Debug, Default)]
+pub struct StatefulList<T> {
+    pub state: ListState,
+    pub items: Vec<T>,
+}
+
+impl<'a> App<'a> {
     /// runs the application's main loop until the user quits
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
 
@@ -82,7 +107,7 @@ impl App {
 
 // rendering ui requires passing a Frame to draw(), Frames have render_widget(), which renders any
 // type implementing the widget trait, here, we implement the Widget trait for the App struct
-impl Widget for &App {
+impl<'a> Widget for &App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(" This will eventually be a tuifs B)".bold());
         let instructions = Line::from(vec![
