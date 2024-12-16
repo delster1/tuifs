@@ -1,84 +1,55 @@
 use bytes::Bytes;
-use chrono::Utc;
-use http_body_util::BodyExt;
-use http_body_util::Full;
-use hyper::{body, Request, Response};
-use rand::Rng;
-use std::collections::HashMap;
-use std::net::IpAddr;
+use http_body_util::{BodyExt, Full};
+use hyper::{Request, Response};
 use std::sync::Arc;
-use url::form_urlencoded;
-pub struct Server {
-    name: String,
-    port: u16,
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use hyper::server::conn::http1::Builder;
+use hyper_util::rt::TokioIo;
+use hyper::service::{service_fn, Service};
+mod server;
+use crate::server::Server;
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let server = Server::new("server1", 3333).await;
+    let listener = TcpListener::bind("127.0.0.1:3333").await.unwrap();
+    println!("Server listening on http://127.0.0.1:3333");
+
+    // Wrap `Server` in an `Arc` for shared ownership
+    let server_arc = Arc::new(server);
+    loop {
+        let (stream, _) = listener.accept().await?; // Use tokio::net::TcpStream
+        let server_arc = Arc::clone(&server_arc);
+        let io = TokioIo::new(stream);
+        tokio::task::spawn(async move {
+            if let Err(err) = Builder::new()
+                .serve_connection(
+                    io,
+                    service_fn(move |req| handle_request(req, Arc::clone(&server_arc))),
+                )
+                .await
+            {
+                eprintln!("Error serving connection: {:?}", err);
+            }
+        });
+    }
 }
 
-fn get_unix_time_as_bigint() -> i64 {
-    Utc::now().timestamp_millis() // Get the current Unix time in milliseconds
-}
-impl Server {
-    pub async fn new(name: &str, port: u16) -> Self {
-        Self {
-            name: name.to_string(),
-            port: port,
-        }
-    }
-
-    pub fn handle_std_request(&self) -> Result<Response<Full<Bytes>>, hyper::Error> {
-        return Ok(hyper::Response::builder()
-            .status(404)
-            .body(Full::from(Bytes::from("Not Found")))
-            .unwrap());
-    }
-
-    async fn handle_request(
-        &self,
+async fn handle_request(
         req: Request<hyper::body::Incoming>,
         server: Arc<Server>,
     ) -> Result<Response<Full<Bytes>>, hyper::Error> {
         match req.uri().path() {
             "/addfile" => {
                 let whole_body = req.collect().await?.to_bytes();
-                self.handle_addfile(whole_body).await
+                server.handle_addfile(whole_body).await
             }
             "/getfile" => {
                 let whole_body = req.collect().await?.to_bytes();
-                self.handle_getfile(whole_body).await
+                server.handle_getfile(whole_body).await
             }
 
             _ => server.handle_std_request(),
         }
     }
-}
 
-impl Server {
-    async fn handle_addfile(
-        &self,
-        req_bytes: Bytes,
-    ) -> Result<Response<Full<Bytes>>, hyper::Error> {
-        let response_body = "File added successfully";
-        Ok(hyper::Response::builder()
-            .status(200)
-            .body(Full::from(Bytes::from(response_body)))
-            .unwrap())
-    }
-
-    async fn handle_getfile(
-        &self,
-        req_bytes: Bytes,
-    ) -> Result<Response<Full<Bytes>>, hyper::Error> {
-        let response_body = "temporary response body";
-        Ok(hyper::Response::builder()
-            .status(200)
-            .body(Full::from(Bytes::from(response_body)))
-            .unwrap())
-    }
-}
-
-#[tokio::main]
-async fn main() {
-    let server = Server {
-        name: "My Server".to_string(),
-        port: 8080,
-    };
-}
