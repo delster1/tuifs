@@ -2,19 +2,27 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{Request, Response};
 use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+// use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 use hyper::server::conn::http1::Builder;
 use hyper_util::rt::TokioIo;
-use hyper::service::{service_fn, Service};
+use hyper::service::service_fn;
 mod server;
+use std::env;
 use crate::server::Server;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let server = Server::new("server1", 3333).await;
     let listener = TcpListener::bind("127.0.0.1:3333").await.unwrap();
-    println!("Server listening on http://127.0.0.1:3333");
 
+    let args: Vec<String> = env::args().collect();
+
+    let mut server = Server::new("server1", 3333).await;
+    let binding = &String::from("./storage");
+    let storage_dir = args.get(1).unwrap_or(binding);
+
+    server.set_storage_dir(storage_dir)?;
+
+    println!("Server listening on http://127.0.0.1:{}", server.port);
     // Wrap `Server` in an `Arc` for shared ownership
     let server_arc = Arc::new(server);
     loop {
@@ -44,9 +52,9 @@ async fn handle_request(
                 let whole_body = req.collect().await?.to_bytes();
                 server.handle_addfile(whole_body).await
             }
-            "/getfile" => {
+            "/getfiles" => {
                 let whole_body = req.collect().await?.to_bytes();
-                server.handle_getfile(whole_body).await
+                server.handle_getfiles(whole_body).await
             }
 
             _ => server.handle_std_request(),
