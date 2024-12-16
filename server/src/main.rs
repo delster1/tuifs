@@ -16,11 +16,10 @@ async fn main() -> std::io::Result<()> {
 
     let args: Vec<String> = env::args().collect();
 
+
     let mut server = Server::new("server1", 3333).await;
     let binding = &String::from("./storage");
     let storage_dir = args.get(1).unwrap_or(binding);
-
-    server.set_storage_dir(storage_dir)?;
 
     println!("Server listening on http://127.0.0.1:{}", server.port);
     // Wrap `Server` in an `Arc` for shared ownership
