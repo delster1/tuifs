@@ -20,7 +20,6 @@ pub struct App<'a> {
     pub title : &'a str,
     pub server_files : StatefulList<&'a str>, 
     server_location : IpAndPort,
-    counter: u32,
     exit: bool,
 }
 #[derive(Debug)]
@@ -76,33 +75,35 @@ impl<'a> App<'a> {
     fn handle_key_event(&mut self, key_event : KeyEvent) -> Result<()>{
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
-            KeyCode::Left => self.decremenet_counter()?,
-            KeyCode::Right => self.increment_counter()?,
+            KeyCode::Char('u') => self.upload_file(),
+            KeyCode::Char('d') => self.download_file(),
+            KeyCode::Char('s') => self.set_server_location(),
+            KeyCode::Char('g') => self.get_server_files(),
             _ => {}
         }
         Ok(())
+    }
+    
+    fn upload_file(&mut self){
+        println!("uploading file");
+    }
+
+    fn download_file(&mut self){
+        println!("downloading file");
+    }
+
+    fn set_server_location(&mut self){
+        println!("setting server location");
+    }
+
+    fn get_server_files(&mut self){
+        println!("getting server files");
     }
 
     fn exit(&mut self){
         self.exit = true;
     }
 
-    fn increment_counter(&mut self) -> Result<()>{
-        if self.counter > 100 {
-            bail!("counter too high!")
-        }
-        self.counter += 1;
-        Ok(())
-    }
-
-    fn decremenet_counter(&mut self) -> Result<()> {
-        if self.counter < 2 {
-            self.counter = 100;
-        }
-
-        self.counter -= 1;
-        Ok(())
-    }
 }
 
 // rendering ui requires passing a Frame to draw(), Frames have render_widget(), which renders any
@@ -126,7 +127,6 @@ impl<'a> Widget for &App<'a> {
 
         let counter_text = Text::from(vec![Line::from(vec![
             "Values: ".into(),
-            self.counter.to_string().yellow(),
         ])]);
 
         Paragraph::new(counter_text)
