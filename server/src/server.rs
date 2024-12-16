@@ -26,13 +26,6 @@ impl Server {
         }
     }
 
-    pub fn handle_std_request(&self) -> Result<Response<Full<Bytes>>, hyper::Error> {
-        return Ok(hyper::Response::builder()
-            .status(404)
-            .body(Full::from(Bytes::from("Not Found")))
-            .unwrap());
-    }
-
     pub fn set_storage_dir(&mut self, storage_dir: &str) -> std::io::Result<()> {
         self.storage_dir = storage_dir.to_string();
 
@@ -49,6 +42,7 @@ impl Server {
 }
 
 impl Server {
+
     pub async fn handle_addfile(
         &self,
         req_bytes: Bytes,
@@ -86,4 +80,13 @@ impl Server {
             .body(Full::from(Bytes::from(response_body)))
             .unwrap())
     }
+
+    pub fn handle_std_request(&self) -> Result<Response<Full<Bytes>>, hyper::Error> {
+        return Ok(hyper::Response::builder()
+            .status(404)
+            .body(Full::from(Bytes::from("Not Found")))
+            .unwrap());
+    }
+
+
 }
