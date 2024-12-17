@@ -1,6 +1,19 @@
 # TUIFS
 rust tui fileserver 
 
+## Todo
+client 
+- make it pretty - backgrounds 
+- add error handling for incorrectly inputted values 
+- add error handling for incorrect server responses 
+- add upload file functionality
+    - add upload folder functionality (hyper buffered response)
+
+server 
+- add recieve file/folder functionality 
+- add send file functionality 
+
+
 ## notes / ideas
     jotting stuff / general ideas down post-ratatui tutorial
 
