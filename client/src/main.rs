@@ -17,7 +17,8 @@ async fn main() -> Result<()> {
     let client = CustomHTTPClient::new(&default.to_string()).await.unwrap();
 
     let mut terminal = ratatui::init();
-    let app_result = App::new(client).run(&mut terminal);
+    // let app_result = App::new(Some(client)).run(&mut terminal);
+    let app_result = App::new(None).run(&mut terminal);
 
     if let Err(err) = ratatui::try_restore() {
         eprintln!(

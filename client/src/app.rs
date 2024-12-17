@@ -61,7 +61,7 @@ pub struct App<'a> {
     pub title: &'a str,
     pub input: String,
     pub server_files: StatefulList<String>,
-    pub client: CustomHTTPClient,
+    pub client: Option<CustomHTTPClient>,
     pub exit: bool,
     pub current_screen: CurrentScreen,
     pub currently_configuring: Option<CurrentlyConfiguring>,
@@ -69,7 +69,7 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    pub fn new(client: CustomHTTPClient) -> Self {
+    pub fn new(client: Option<CustomHTTPClient>) -> Self {
         Self {
             title: "tuifs",
             input: String::new(),
@@ -83,6 +83,12 @@ impl<'a> App<'a> {
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        if self.client.is_some() {
+            self.get_server_files();
+        } else {
+            self.current_screen = CurrentScreen::Configuring;
+            self.currently_configuring = Some(CurrentlyConfiguring::ServerLocation);
+        }
         while !self.exit {
             terminal.draw(|frame| ui(frame, self.borrow_mut()))?;
             if let Event::Key(key_event) = event::read()? {
@@ -109,6 +115,7 @@ impl<'a> App<'a> {
     }
 
     fn handle_uploading_screen(&mut self, key_event: KeyEvent) -> Result<()> {
+        
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Esc => {
@@ -143,9 +150,10 @@ impl<'a> App<'a> {
                             self.current_screen = CurrentScreen::ServerFiles;
                         }
                         CurrentlyConfiguring::ServerLocation => {
-                            self.client = block_on(CustomHTTPClient::new(&self.input)).unwrap();
+                            self.client = Some(block_on(CustomHTTPClient::new(&self.input)).unwrap());
                             self.currently_configuring = None;
                             self.input = String::new();
+                            self.get_server_files();
                             self.current_screen = CurrentScreen::ServerFiles;
                         }
                         CurrentlyConfiguring::UploadLocation => {
@@ -251,14 +259,15 @@ impl<'a> App<'a> {
     }
 
     fn get_server_files(&mut self) {
-        let uri = format!("http://{}/getfiles", self.client.address);
+
+        let uri = format!("http://{}/getfiles", self.client.as_ref().unwrap().address);
         let req = hyper::Request::builder()
             .method("GET")
             .uri(uri)
             .body(Empty::<Bytes>::new())
             .unwrap();
 
-        let response = block_on(self.client.send_request(req)).unwrap();
+        let response = block_on(self.client.as_mut().unwrap().send_request(req)).unwrap();
         let server_files: Vec<String> = serrde_json::from_slice(&response).unwrap();
         self.server_files.items = server_files;
         self.server_files.state.select(Some(0));
