@@ -1,26 +1,23 @@
+use crate::httpclient::CustomHTTPClient;
+use crate::statefullist::StatefulList;
+use crate::ui::ui;
+use color_eyre::{eyre::WrapErr, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
-use serde_json as serrde_json;
+use futures::executor::block_on;
 use http_body_util::Empty;
 use hyper::body::Bytes;
-use futures::executor::block_on;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::Stylize,
     symbols::border,
     text::{Line, Text},
-    widgets::{Block, ListState, Paragraph, Widget, StatefulWidget},
+    widgets::{Block, ListState, Paragraph, StatefulWidget, Widget},
     DefaultTerminal, Frame,
 };
-use color_eyre::{
-    eyre::{WrapErr},
-    Result,
-};
-use std::{borrow::BorrowMut, fmt};
+use serde_json as serrde_json;
 use std::io;
-use crate::httpclient::CustomHTTPClient;
-use crate::statefullist::StatefulList;
-use crate::ui::ui;
+use std::{borrow::BorrowMut, fmt};
 
 pub enum CurrentScreen {
     Start,
@@ -33,6 +30,7 @@ pub enum CurrentScreen {
 pub enum CurrentlyConfiguring {
     DownloadLocation,
     ServerLocation,
+    UploadLocation,
 }
 
 impl Default for CurrentScreen {
@@ -70,7 +68,6 @@ pub struct App<'a> {
     download_location: String,
 }
 
-
 impl<'a> App<'a> {
     pub fn new(client: CustomHTTPClient) -> Self {
         Self {
@@ -87,15 +84,13 @@ impl<'a> App<'a> {
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.exit {
-            terminal.draw(|frame| ui(frame,  self.borrow_mut()))?;
+            terminal.draw(|frame| ui(frame, self.borrow_mut()))?;
             if let Event::Key(key_event) = event::read()? {
                 self.handle_key_event(key_event).unwrap();
             }
         }
         Ok(())
     }
-
-    
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
@@ -109,7 +104,7 @@ impl<'a> App<'a> {
             CurrentScreen::Downloading => self.handle_downloading_screen(key_event)?,
             CurrentScreen::Configuring => self.handle_configuring_screen(key_event)?,
         }
-        
+
         Ok(())
     }
 
@@ -117,7 +112,7 @@ impl<'a> App<'a> {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Esc => {
-                self.current_screen = CurrentScreen::ServerFiles;
+                self.current_screen = CurrentScreen::Start;
             }
             KeyCode::Char('c') => {
                 self.current_screen = CurrentScreen::Configuring;
@@ -127,7 +122,7 @@ impl<'a> App<'a> {
         }
         Ok(())
     }
-    
+
     fn change_download_location(&mut self, location: String) {
         self.download_location = location;
     }
@@ -135,12 +130,13 @@ impl<'a> App<'a> {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Esc => {
-                self.current_screen = CurrentScreen::ServerFiles;
+                self.input = String::new();
+                self.current_screen = CurrentScreen::Start;
             }
             KeyCode::Char('\n') | KeyCode::Enter => {
-                    if let Some(editing) = &self.currently_configuring  {
+                if let Some(editing) = &self.currently_configuring {
                     match editing {
-                        CurrentlyConfiguring::DownloadLocation => { 
+                        CurrentlyConfiguring::DownloadLocation => {
                             self.change_download_location(self.input.clone());
                             self.currently_configuring = None;
                             self.input = String::new();
@@ -152,10 +148,14 @@ impl<'a> App<'a> {
                             self.input = String::new();
                             self.current_screen = CurrentScreen::ServerFiles;
                         }
+                        CurrentlyConfiguring::UploadLocation => {
+                            self.currently_configuring = None;
+                            self.input = String::new();
+                            self.current_screen = CurrentScreen::ServerFiles;
+                        }
                     }
-                    
-                }else {
-                        self.current_screen = CurrentScreen::ServerFiles;
+                } else {
+                    self.current_screen = CurrentScreen::ServerFiles;
                 }
             }
             KeyCode::Backspace => {
@@ -164,12 +164,7 @@ impl<'a> App<'a> {
             KeyCode::Char(c) => {
                 self.input.push(c);
             }
-            KeyCode::Esc => {
-                self.currently_configuring = None;
-                self.input = String::new();
-                self.current_screen = CurrentScreen::ServerFiles;
-            }
-            _ => {}
+           _ => {}
         }
         Ok(())
     }
@@ -178,7 +173,7 @@ impl<'a> App<'a> {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Esc => {
-                self.current_screen = CurrentScreen::ServerFiles;
+                self.current_screen = CurrentScreen::Start;
             }
             KeyCode::Char('c') => {
                 self.current_screen = CurrentScreen::Configuring;
@@ -193,8 +188,8 @@ impl<'a> App<'a> {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('d') => {
-                self.current_screen = CurrentScreen::Downloading;
-                self.download_file();
+                self.current_screen = CurrentScreen::Configuring;
+                self.currently_configuring = Some(CurrentlyConfiguring::DownloadLocation);
             }
             KeyCode::Char('u') => {
                 self.current_screen = CurrentScreen::Configuring;
@@ -204,33 +199,36 @@ impl<'a> App<'a> {
             KeyCode::Char('c') => {
                 self.current_screen = CurrentScreen::Configuring;
                 self.currently_configuring = Some(CurrentlyConfiguring::ServerLocation);
-                self.set_server_location();
             }
-            KeyCode::Up | KeyCode::Char('k')=> {
+            KeyCode::Up | KeyCode::Char('k') => {
                 self.server_files.previous();
             }
-            KeyCode::Down | KeyCode::Char('j')=> {
+            KeyCode::Down | KeyCode::Char('j') => {
                 self.server_files.next();
+            }
+            KeyCode::Esc => {
+                self.currently_configuring = None;
+                self.current_screen = CurrentScreen::Start;
             }
             _ => {}
         }
         Ok(())
-    } 
-    
+    }
+
     fn handle_start_screen(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('u') => {
-                self.current_screen = CurrentScreen::Uploading;
-                self.upload_file();
+                self.current_screen = CurrentScreen::Configuring;
+                self.currently_configuring = Some(CurrentlyConfiguring::UploadLocation);
             }
             KeyCode::Char('d') => {
-                self.get_server_files();
-                self.current_screen = CurrentScreen::ServerFiles;
+                self.current_screen = CurrentScreen::Configuring;
+                self.currently_configuring = Some(CurrentlyConfiguring::DownloadLocation);
             }
             KeyCode::Char('c') => {
                 self.current_screen = CurrentScreen::Configuring;
-                self.set_server_location();
+                self.currently_configuring = Some(CurrentlyConfiguring::ServerLocation);
             }
             KeyCode::Char('g') => {
                 self.current_screen = CurrentScreen::ServerFiles;
@@ -257,10 +255,11 @@ impl<'a> App<'a> {
         let req = hyper::Request::builder()
             .method("GET")
             .uri(uri)
-            .body(Empty::<Bytes>::new()).unwrap();
+            .body(Empty::<Bytes>::new())
+            .unwrap();
 
-        let response  = block_on(self.client.send_request(req)).unwrap();
-        let server_files : Vec<String> = serrde_json::from_slice(&response).unwrap();
+        let response = block_on(self.client.send_request(req)).unwrap();
+        let server_files: Vec<String> = serrde_json::from_slice(&response).unwrap();
         self.server_files.items = server_files;
         self.server_files.state.select(Some(0));
         *self.server_files.state.offset_mut() = 0;
@@ -272,5 +271,3 @@ impl<'a> App<'a> {
         self.exit = true;
     }
 }
-
-
