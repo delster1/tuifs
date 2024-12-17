@@ -47,6 +47,7 @@ impl CustomHTTPClient {
         let res_bytes = res.collect().await?.to_bytes();
         Ok(res_bytes)
     }
+
 }
 
 impl Default for CustomHTTPClient {
