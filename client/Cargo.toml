@@ -16,10 +16,13 @@ shared = { path = "../shared" }  # Optional, if using shared library
 chrono = "0.4.39"
 http-body-util = "0.1"
 hyper = {version = "1.5.1", features = ["full"] }
+tokio-util = {version = "0.7.13", features = ["full"] }
 rand = "0.8.5"
 url = "2.5.4"
 bytes = "1.9.0"
 arc = "0.0.1"
 hyper-util = {version = "0.1", features = ["full"] }
 futures = "0.3.31"
+map-ok = "1.0.0"
+map_err = "0.1.0"
 

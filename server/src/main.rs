@@ -48,8 +48,8 @@ async fn handle_request(
     ) -> Result<Response<Full<Bytes>>, hyper::Error> {
         match req.uri().path() {
             "/addfile" => {
-                let whole_body = req.collect().await?.to_bytes();
-                server.handle_addfile(whole_body).await
+                let req_body : hyper::body::Incoming = req.into_body();
+                server.handle_addfile(req_body).await
             }
             "/getfiles" => {
                 let whole_body = req.collect().await?.to_bytes();

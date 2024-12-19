@@ -79,8 +79,9 @@ impl Server {
 
     pub async fn handle_addfile(
         &self,
-        req_bytes: Bytes,
+        req_body: hyper::body::Incoming,
     ) -> Result<Response<Full<Bytes>>, hyper::Error> {
+        
         let response_body = "to be implemented";
         Ok(hyper::Response::builder()
             .status(200)

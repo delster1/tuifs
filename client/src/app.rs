@@ -1,30 +1,43 @@
+///
+/// This file contains the main application logic for the TUI file sharing application.
+/// - The App struct contains the main state for the application and related functions
+/// in this file:
+/// - run: main start point
+/// - handle_key_event: handles key events based on current screen state
+/// - upload/download server files
+/// - server configuration backend
 use crate::httpclient::CustomHTTPClient;
 use crate::statefullist::StatefulList;
 use crate::ui::ui;
-use color_eyre::{eyre::WrapErr, Result};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use color_eyre::Result;
+use crossterm::event::{self, Event, KeyCode, KeyEvent};
+use futures::stream;
 use futures::executor::block_on;
-use http_body_util::Empty;
-use hyper::body::Bytes;
+use http_body_util::BodyExt;
+use http_body_util::{combinators::BoxBody, Empty, Full, StreamBody};
+use hyper::body::{Body, Bytes, Frame};
+use hyper::Request;
 use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::Stylize,
-    symbols::border,
-    text::{Line, Text},
-    widgets::{Block, ListState, Paragraph, StatefulWidget, Widget},
-    DefaultTerminal, Frame,
+    // layout::Rect,
+    // style::Stylize,
+    // symbols::border,
+    // text::{Line, Text},
+    // widgets::{Block, ListState, Paragraph, StatefulWidget, Widget},
+    DefaultTerminal, // , Frame,
 };
 use serde_json as serrde_json;
+use std::convert::Infallible;
+use std::fs;
 use std::io;
+use std::path::PathBuf;
 use std::{borrow::BorrowMut, fmt};
 
 pub enum CurrentScreen {
-    Start,
+    Start, // Main screen - Menu and stuff
     ServerFiles,
-    Uploading,
-    Downloading,
-    Configuring,
+    Uploading,   // screen while a file is uploading - should show success.
+    Downloading, // screen while a file is downloading - should show success.
+    Configuring, // screen for configuring the server location, download location, upload location
 }
 
 pub enum CurrentlyConfiguring {
@@ -98,6 +111,56 @@ impl<'a> App<'a> {
         Ok(())
     }
 
+    fn upload_file(&mut self, filepath: String) -> Result<()> {
+        let file_path: PathBuf = PathBuf::from(&filepath);
+        let file_data = fs::metadata(&file_path)?;
+        if file_data.is_dir() {
+            // eventually add code to upload directories
+            println!("Cannot upload directories");
+            return Err(
+                io::Error::new(io::ErrorKind::Other, "Cannot upload directories (yet)").into(),
+            );
+        }
+        let res = block_on(self.client.as_mut().unwrap().send_file(file_path)).unwrap();
+        println!("uploading file");
+        Ok(())
+    }
+
+    fn download_file(&mut self) {
+        println!("downloading file");
+    }
+
+    fn set_server_location(&mut self) {
+        println!("setting server location");
+    }
+
+    fn get_server_files(&mut self) {
+        let uri = format!("http://{}/getfiles", self.client.as_ref().unwrap().address);
+        let empty = Empty::new();
+        let body = Request::new("empty").into_body();
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(uri)
+            .body(BoxBody::new(empty))
+            .unwrap();
+
+        let response = block_on(self.client.unwrap().send_my_request(req)).unwrap();
+        let server_files: Vec<String> = serrde_json::from_slice(&response).unwrap();
+        self.server_files.items = server_files;
+        self.server_files.state.select(Some(0));
+        *self.server_files.state.offset_mut() = 0;
+
+        println!("getting server files");
+    }
+
+    fn exit(&mut self) {
+        self.exit = true;
+    }
+}
+
+// all event handlers here, can eventually move this to a separate file if necessary
+impl<'a> App<'a> {
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
@@ -115,7 +178,6 @@ impl<'a> App<'a> {
     }
 
     fn handle_uploading_screen(&mut self, key_event: KeyEvent) -> Result<()> {
-        
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Esc => {
@@ -150,7 +212,8 @@ impl<'a> App<'a> {
                             self.current_screen = CurrentScreen::ServerFiles;
                         }
                         CurrentlyConfiguring::ServerLocation => {
-                            self.client = Some(block_on(CustomHTTPClient::new(&self.input)).unwrap());
+                            self.client =
+                                Some(block_on(CustomHTTPClient::new(&self.input)).unwrap());
                             self.currently_configuring = None;
                             self.input = String::new();
                             self.get_server_files();
@@ -158,6 +221,7 @@ impl<'a> App<'a> {
                         }
                         CurrentlyConfiguring::UploadLocation => {
                             self.currently_configuring = None;
+                            self.upload_file(self.input.clone());
                             self.input = String::new();
                             self.current_screen = CurrentScreen::ServerFiles;
                         }
@@ -172,7 +236,7 @@ impl<'a> App<'a> {
             KeyCode::Char(c) => {
                 self.input.push(c);
             }
-           _ => {}
+            _ => {}
         }
         Ok(())
     }
@@ -195,14 +259,9 @@ impl<'a> App<'a> {
     fn handle_server_files_screen(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
-            KeyCode::Char('d') => {
+            KeyCode::Char('d') | KeyCode::Enter | KeyCode::Char('\n') => {
                 self.current_screen = CurrentScreen::Configuring;
                 self.currently_configuring = Some(CurrentlyConfiguring::DownloadLocation);
-            }
-            KeyCode::Char('u') => {
-                self.current_screen = CurrentScreen::Configuring;
-                self.currently_configuring = Some(CurrentlyConfiguring::DownloadLocation);
-                self.upload_file();
             }
             KeyCode::Char('c') => {
                 self.current_screen = CurrentScreen::Configuring;
@@ -245,38 +304,5 @@ impl<'a> App<'a> {
             _ => {}
         }
         Ok(())
-    }
-    fn upload_file(&mut self) {
-        println!("uploading file");
-    }
-
-    fn download_file(&mut self) {
-        println!("downloading file");
-    }
-
-    fn set_server_location(&mut self) {
-        println!("setting server location");
-    }
-
-    fn get_server_files(&mut self) {
-
-        let uri = format!("http://{}/getfiles", self.client.as_ref().unwrap().address);
-        let req = hyper::Request::builder()
-            .method("GET")
-            .uri(uri)
-            .body(Empty::<Bytes>::new())
-            .unwrap();
-
-        let response = block_on(self.client.as_mut().unwrap().send_request(req)).unwrap();
-        let server_files: Vec<String> = serrde_json::from_slice(&response).unwrap();
-        self.server_files.items = server_files;
-        self.server_files.state.select(Some(0));
-        *self.server_files.state.offset_mut() = 0;
-
-        println!("getting server files");
-    }
-
-    fn exit(&mut self) {
-        self.exit = true;
     }
 }
