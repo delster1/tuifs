@@ -11,9 +11,7 @@ use crate::statefullist::StatefulList;
 use crate::ui::ui;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
-use futures::stream;
 use futures::executor::block_on;
-use http_body_util::BodyExt;
 use http_body_util::{combinators::BoxBody, Empty, Full, StreamBody};
 use hyper::body::{Body, Bytes, Frame};
 use hyper::Request;
@@ -26,7 +24,6 @@ use ratatui::{
     DefaultTerminal, // , Frame,
 };
 use serde_json as serrde_json;
-use std::convert::Infallible;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -136,16 +133,10 @@ impl<'a> App<'a> {
 
     fn get_server_files(&mut self) {
         let uri = format!("http://{}/getfiles", self.client.as_ref().unwrap().address);
-        let empty = Empty::new();
-        let body = Request::new("empty").into_body();
-
-        let req = Request::builder()
-            .method("GET")
-            .uri(uri)
-            .body(BoxBody::new(empty))
-            .unwrap();
-
-        let response = block_on(self.client.unwrap().send_my_request(req)).unwrap();
+        let mut req: Request<BoxBody<Bytes, std::io::Error>> = Default::default();
+        *req.uri_mut() = uri.parse().unwrap();
+        println!("sending request{:?}", req);
+        let response = block_on(self.client.as_mut().unwrap().send_request(req)).unwrap();
         let server_files: Vec<String> = serrde_json::from_slice(&response).unwrap();
         self.server_files.items = server_files;
         self.server_files.state.select(Some(0));
