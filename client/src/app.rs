@@ -1,4 +1,3 @@
-///
 /// This file contains the main application logic for the TUI file sharing application.
 /// - The App struct contains the main state for the application and related functions
 /// in this file:
@@ -6,12 +5,17 @@
 /// - handle_key_event: handles key events based on current screen state
 /// - upload/download server files
 /// - server configuration backend
+use hyper::header::HeaderValue;
 use crate::httpclient::CustomHTTPClient;
+use tokio::io::AsyncWriteExt;
 use crate::statefullist::StatefulList;
+use tokio::fs::File;
 use crate::ui::ui;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use futures::executor::block_on;
+///
+use http_body_util::BodyExt;
 use http_body_util::{combinators::BoxBody, Empty, Full, StreamBody};
 use hyper::body::{Body, Bytes, Frame};
 use hyper::Request;
@@ -120,30 +124,54 @@ impl<'a> App<'a> {
         }
 
         let res = block_on(self.client.as_mut().unwrap().send_file(file_path)).unwrap();
-        println!("uploading file");
+
         Ok(())
     }
 
     fn download_file(&mut self) {
-        println!("downloading file");
+        let uri = format!("http://{}/downloadfile", self.client.as_ref().unwrap().address);
+        
+        let file_name = self.server_files.items.get(self.server_files.state.selected().unwrap()).unwrap();
+        let file_value = HeaderValue::from_str(file_name).unwrap();
+
+        let mut req: Request<BoxBody<Bytes, std::io::Error>> = Default::default();
+
+        *req.uri_mut() = uri.parse().unwrap();
+        req.headers_mut().insert("file", file_value);
+        
+        let response = block_on(self.client.as_mut().unwrap().send_request(req)).unwrap();
+        let (_, body) = response.into_parts();
+
+        let body = body.collect();
+        let body = block_on(body).unwrap().to_bytes();
+
+        let mut file_path: PathBuf = PathBuf::from(&self.download_location);
+        file_path.push(format!("{}", file_name));
+
+        let mut file = block_on(tokio::fs::File::create(file_path)).unwrap();
+        block_on(file.write_all(&body)).unwrap();
     }
 
     fn set_server_location(&mut self) {
-        println!("setting server location");
+        // println!("setting server location");
     }
 
     fn get_server_files(&mut self) {
         let uri = format!("http://{}/getfiles", self.client.as_ref().unwrap().address);
         let mut req: Request<BoxBody<Bytes, std::io::Error>> = Default::default();
         *req.uri_mut() = uri.parse().unwrap();
-        println!("sending request{:?}", req);
+        // println!("sending request{:?}", req);
         let response = block_on(self.client.as_mut().unwrap().send_request(req)).unwrap();
-        let server_files: Vec<String> = serrde_json::from_slice(&response).unwrap();
+        let (_, body) = response.into_parts();
+
+        let body = body.collect();
+        let body = block_on(body).unwrap().to_bytes();
+
+        let server_files: Vec<String> = serrde_json::from_slice(&body).unwrap();
+
         self.server_files.items = server_files;
         self.server_files.state.select(Some(0));
         *self.server_files.state.offset_mut() = 0;
-
-        println!("getting server files");
     }
 
     fn exit(&mut self) {
@@ -179,6 +207,10 @@ impl<'a> App<'a> {
                 self.current_screen = CurrentScreen::Configuring;
                 self.set_server_location();
             }
+            KeyCode::Char('g') => {
+                self.current_screen = CurrentScreen::ServerFiles;
+                self.get_server_files();
+            }
             _ => {}
         }
         Ok(())
@@ -199,6 +231,7 @@ impl<'a> App<'a> {
                     match editing {
                         CurrentlyConfiguring::DownloadLocation => {
                             self.change_download_location(self.input.clone());
+                            self.download_file();
                             self.currently_configuring = None;
                             self.input = String::new();
                             self.current_screen = CurrentScreen::ServerFiles;
@@ -212,7 +245,9 @@ impl<'a> App<'a> {
                             self.current_screen = CurrentScreen::ServerFiles;
                         }
                         CurrentlyConfiguring::UploadLocation => {
-                            let upload_output = self.upload_file(self.input.clone());
+                            let upload_output = self.upload_file(self.input.clone()); // this
+                                                                                      // function has an async block
+                            self.get_server_files();
                             match upload_output {
                                 Ok(_) => {
                                     self.currently_configuring = None;

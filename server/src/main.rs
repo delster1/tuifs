@@ -60,6 +60,12 @@ async fn handle_request(
                 println!("Received getfiles request");
                 server.handle_getfiles(whole_body).await
             }
+            "/downloadfile" => {
+                let (parts, body) = req.into_parts();
+                let req_headers = parts.headers;
+                println!("Received downloadfile request");
+                server.handle_downloadfile(body, req_headers).await
+            }
 
             _ => server.handle_std_request(),
         }

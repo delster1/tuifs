@@ -178,7 +178,7 @@ fn render_config_screen(
                 let popup = Block::default()
                     .title("Please Enter Where You'd Like Downloaded FilesTo Go:")
                     .borders(Borders::ALL);
-                let popup_input_window = Paragraph::new(app.input.clone())
+                let popup_input_window = Paragraph::new(Span::raw(app.input.clone()))
                     .style(Style::default().fg(Color::White))
                     .block(popup)
                     .wrap(Wrap { trim: true });
@@ -188,7 +188,7 @@ fn render_config_screen(
                 let popup = Block::default()
                     .title("Please Enter Server Location:")
                     .borders(Borders::ALL);
-                let popup_input_window = Paragraph::new(app.input.clone())
+                let popup_input_window = Paragraph::new(Span::raw(app.input.clone()))
                     .style(Style::default().fg(Color::White))
                     .block(popup)
                     .wrap(Wrap { trim: true });
@@ -199,7 +199,7 @@ fn render_config_screen(
                     .title("Please Enter The File Path Of What You're Uploading:")
                     .borders(Borders::ALL);
 
-                let popup_input_window = Paragraph::new(app.input.clone())
+                let popup_input_window = Paragraph::new(Span::raw(app.input.clone()))
                     .style(Style::default().fg(Color::White))
                     .block(popup)
                     .wrap(Wrap { trim: true });
@@ -223,9 +223,10 @@ fn render_download_screen(frame: &mut Frame, app: &App, popup_chunks: Rc<[Rect]>
 
 fn render_upload_screen(frame: &mut Frame, app: &App, popup_chunks: Rc<[Rect]>) {
     let popup = Block::default()
-        .title("Uploading Files")
+        .title("Uploaded Files")
         .borders(Borders::ALL);
-    let popup_text_window = Paragraph::new(app.input.clone())
+    let upload_text = vec![Line::from(vec![Span::raw("Your file has been successfully uploaded!")]), Line::from(vec![Span::raw("Press 'g' to get server files, 'u' to upload files, 'c' to configure server")])];
+    let popup_text_window = Paragraph::new(Text::from(upload_text))
         .wrap(Wrap { trim: true })
         .block(popup);
     frame.render_widget(popup_text_window, popup_chunks[0]);

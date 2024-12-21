@@ -84,7 +84,7 @@ impl Server {
 impl Server {
     pub async fn handle_addfile(
         &self,
-        req_body:hyper::body::Incoming,
+        req_body: hyper::body::Incoming,
         req_headers: hyper::header::HeaderMap,
     ) -> Result<Response<Full<Bytes>>, hyper::Error> {
         let mut file_path: PathBuf = self.storage_dir.clone();
@@ -98,6 +98,27 @@ impl Server {
         let final_file_name = format!("{}.{}", file_name, file_type);
 
         file_path.push(final_file_name);
+
+        let mut file = File::create(file_path).await.unwrap();
+
+        let response_bytes = req_body.collect().await?.to_bytes();
+        file.write_all(&response_bytes).await.unwrap();
+
+        let response_body = "";
+
+        Ok(hyper::Response::builder()
+            .status(200)
+            .body(Full::from(Bytes::from(response_body)))
+            .unwrap())
+    }
+
+    pub async fn handle_downloadfile(
+        &self,
+        req_body: hyper::body::Incoming,
+        req_headers: hyper::header::HeaderMap,
+    ) -> Result<Response<Full<Bytes>>, hyper::Error> {
+        let mut file_path: PathBuf = self.storage_dir.clone();
+        file_path.push(req_headers.get("file").unwrap().to_str().unwrap());
 
         let mut file = File::create(file_path).await.unwrap();
 
@@ -130,7 +151,10 @@ impl Server {
         let paths = fs::read_dir(&self.storage_dir).unwrap();
         let mut paths_list: Vec<String> = Vec::new();
         for path in paths {
-            paths_list.push(path.unwrap().path().display().to_string());
+            let current_path = path.unwrap().path();
+            let file_name = current_path.file_name().unwrap().to_str().unwrap();
+            let file_type = current_path.extension().unwrap().to_str().unwrap();
+            paths_list.push(format!("{}.{}", file_name, file_type));
         }
         println!("Recieved getfiles request, sending \n{:?}", paths_list);
 

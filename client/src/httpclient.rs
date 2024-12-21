@@ -50,7 +50,7 @@ impl CustomHTTPClient {
     }
 
     /// Generic function to send a request
-    pub async fn send_request<B>(&mut self, request: Request<B>) -> Result<Bytes, Box<dyn Error>>
+    pub async fn send_request<B>(&mut self, request: Request<B>) -> Result<Response<hyper::body::Incoming>, Box<dyn Error>>
     where
         B: Body + Send + 'static,
         BoxBody<Bytes, std::io::Error>: From<B>,
@@ -58,18 +58,17 @@ impl CustomHTTPClient {
     {
         let request = request.map(Into::into);
         let response: Response<hyper::body::Incoming> = self.sender.send_request(request).await?;
-        let response_body = response.into_body().collect().await?;
-        Ok(response_body.to_bytes())
+        Ok(response)
     }
 
     pub async fn send_file(
         &mut self,
         filepath: PathBuf,
-    ) -> Result<hyper::body::Bytes, Box<dyn Error>>
+    ) -> Result<Response<hyper::body::Incoming>, Box<dyn Error>>
 where {
         let file = File::open(&filepath).await;
         if file.is_err() {
-            eprintln!("ERROR: Unable to open file.");
+            // eprintln!("ERROR: Unable to open file.");
         }
         
         let file_name = filepath.file_name().unwrap().to_str().unwrap();
@@ -88,9 +87,9 @@ where {
         // Send request
         let request = Request::builder().uri(uri).header("file_name",file_name).header("file_type",file_type).body(boxed_body).unwrap();
 
-        let res_bytes = self.send_request(request).await.unwrap();
-        println!("{:?}",res_bytes);
-        Ok(res_bytes)
+        let res = self.send_request(request).await.unwrap();
+        // println!("{:?}",res_bytes);
+        Ok(res)
     }
 }
 
