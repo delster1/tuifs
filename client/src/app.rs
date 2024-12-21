@@ -182,10 +182,6 @@ impl<'a> App<'a> {
 // all event handlers here, can eventually move this to a separate file if necessary
 impl<'a> App<'a> {
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            _ => {}
-        }
         match self.current_screen {
             CurrentScreen::Start => self.handle_start_screen(key_event)?,
             CurrentScreen::ServerFiles => self.handle_server_files_screen(key_event)?,
@@ -221,7 +217,6 @@ impl<'a> App<'a> {
     }
     fn handle_configuring_screen(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
-            KeyCode::Char('q') => self.exit(),
             KeyCode::Esc => {
                 self.input = String::new();
                 self.current_screen = CurrentScreen::Start;

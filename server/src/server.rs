@@ -152,7 +152,7 @@ impl Server {
         let mut paths_list: Vec<String> = Vec::new();
         for path in paths {
             let current_path = path.unwrap().path();
-            let file_name = current_path.file_name().unwrap().to_str().unwrap();
+            let file_name = current_path.file_stem().unwrap().to_str().unwrap();
             let file_type = current_path.extension().unwrap().to_str().unwrap();
             paths_list.push(format!("{}.{}", file_name, file_type));
         }

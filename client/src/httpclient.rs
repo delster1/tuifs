@@ -71,7 +71,7 @@ where {
             // eprintln!("ERROR: Unable to open file.");
         }
         
-        let file_name = filepath.file_name().unwrap().to_str().unwrap();
+        let file_name = filepath.file_stem().unwrap().to_str().unwrap();
         let file_type = filepath.extension().unwrap().to_str().unwrap();
 
         let uri = format!("http://{}/addfile", self.address);
