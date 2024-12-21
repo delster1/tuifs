@@ -118,6 +118,7 @@ impl<'a> App<'a> {
                 io::Error::new(io::ErrorKind::Other, "Cannot upload directories (yet)").into(),
             );
         }
+
         let res = block_on(self.client.as_mut().unwrap().send_file(file_path)).unwrap();
         println!("uploading file");
         Ok(())
@@ -211,10 +212,17 @@ impl<'a> App<'a> {
                             self.current_screen = CurrentScreen::ServerFiles;
                         }
                         CurrentlyConfiguring::UploadLocation => {
-                            self.currently_configuring = None;
-                            self.upload_file(self.input.clone());
-                            self.input = String::new();
-                            self.current_screen = CurrentScreen::ServerFiles;
+                            let upload_output = self.upload_file(self.input.clone());
+                            match upload_output {
+                                Ok(_) => {
+                                    self.currently_configuring = None;
+                                    self.input = String::new();
+                                    self.current_screen = CurrentScreen::Uploading;
+                                }
+                                Err(e) => {
+                                    self.input = format!("Error Uploading: {:?}", e);
+                                }
+                            }
                         }
                     }
                 } else {

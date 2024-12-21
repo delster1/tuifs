@@ -180,7 +180,8 @@ fn render_config_screen(
                     .borders(Borders::ALL);
                 let popup_input_window = Paragraph::new(app.input.clone())
                     .style(Style::default().fg(Color::White))
-                    .block(popup);
+                    .block(popup)
+                    .wrap(Wrap { trim: true });
                 frame.render_widget(popup_input_window, popup_chunks[0]);
             }
             CurrentlyConfiguring::ServerLocation => {
@@ -189,16 +190,19 @@ fn render_config_screen(
                     .borders(Borders::ALL);
                 let popup_input_window = Paragraph::new(app.input.clone())
                     .style(Style::default().fg(Color::White))
-                    .block(popup);
+                    .block(popup)
+                    .wrap(Wrap { trim: true });
                 frame.render_widget(popup_input_window, popup_chunks[0]);
             }
             CurrentlyConfiguring::UploadLocation => {
                 let popup = Block::default()
                     .title("Please Enter The File Path Of What You're Uploading:")
                     .borders(Borders::ALL);
+
                 let popup_input_window = Paragraph::new(app.input.clone())
                     .style(Style::default().fg(Color::White))
-                    .block(popup);
+                    .block(popup)
+                    .wrap(Wrap { trim: true });
                 frame.render_widget(popup_input_window, popup_chunks[0]);
             }
         }

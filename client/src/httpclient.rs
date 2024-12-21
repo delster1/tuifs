@@ -67,10 +67,13 @@ impl CustomHTTPClient {
         filepath: PathBuf,
     ) -> Result<hyper::body::Bytes, Box<dyn Error>>
 where {
-        let file = File::open(filepath).await;
+        let file = File::open(&filepath).await;
         if file.is_err() {
             eprintln!("ERROR: Unable to open file.");
         }
+        
+        let file_name = filepath.file_name().unwrap().to_str().unwrap();
+        let file_type = filepath.extension().unwrap().to_str().unwrap();
 
         let uri = format!("http://{}/addfile", self.address);
         let file: File = file.unwrap();
@@ -83,10 +86,10 @@ where {
         let boxed_body = stream_body.boxed();
 
         // Send request
-        let request = Request::builder().uri(uri).body(boxed_body).unwrap();
+        let request = Request::builder().uri(uri).header("file_name",file_name).header("file_type",file_type).body(boxed_body).unwrap();
 
         let res_bytes = self.send_request(request).await.unwrap();
-
+        println!("{:?}",res_bytes);
         Ok(res_bytes)
     }
 }

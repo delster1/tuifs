@@ -17,9 +17,9 @@ async fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
 
-    let mut server = Server::new("server1", 3333).await;
+    let server = Server::new("server1", 3333).await;
     let binding = &String::from("./storage");
-    let storage_dir = args.get(1).unwrap_or(binding);
+    // let storage_dir = args.get(1).unwrap_or(binding);
 
     println!("Server listening on http://127.0.0.1:{}", server.port);
     // Wrap `Server` in an `Arc` for shared ownership
@@ -32,7 +32,7 @@ async fn main() -> std::io::Result<()> {
             if let Err(err) = Builder::new()
                 .serve_connection(
                     io,
-                    service_fn(move |req| handle_request(req, Arc::clone(&server_arc))),
+                    service_fn(move | req| handle_request(req, Arc::clone(&server_arc))),
                 )
                 .await
             {
@@ -48,11 +48,16 @@ async fn handle_request(
     ) -> Result<Response<Full<Bytes>>, hyper::Error> {
         match req.uri().path() {
             "/addfile" => {
-                let req_body : hyper::body::Incoming = req.into_body();
-                server.handle_addfile(req_body).await
+                let (parts, body) = req.into_parts();
+                let req_headers = parts.headers;
+            
+                println!("Received addfile request");
+                server.handle_addfile(body, req_headers).await
             }
             "/getfiles" => {
+                
                 let whole_body = req.collect().await?.to_bytes();
+                println!("Received getfiles request");
                 server.handle_getfiles(whole_body).await
             }
 
